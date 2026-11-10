@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Clear Session Status)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Full Hits View)
 # Part 1 of 2
 # =====================================================================
 
@@ -176,7 +176,6 @@ async def fetch_official_session(session, gw_params, current_mac_ref, current_ip
     except Exception:
         pass
 
-    # မရရင် အတု
     fake_sid = f"fake_sess_{random.randint(1000,9999)}"
     return {
         'sessionId': fake_sid,
@@ -260,7 +259,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Clear Session Status)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Full Hits View)
 # Part 2 of 2
 # =====================================================================
 
@@ -277,7 +276,6 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
 
     status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() else "bold green"
     
-    # ⭐ Session အခြေအနေနဲ့ ID ကို ရှင်းရှင်းလင်းလင်း ပြမယ်
     if sess_stat == "REAL":
         sess_text = f"REAL ({sess_id[:8]}...)"
         sess_style = "bold green"
@@ -306,7 +304,8 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     v_table.add_column("Plan", style="bold green", justify="center")
     v_table.add_column("Remaining", style="bold green", justify="center")
 
-    for h in hits[-10:]:
+    # ⭐ ဒီနေရာမှာ [-10:] ကို ဖျက်ပြီး အကုန်လုံးပြအောင် လုပ်ထားပါတယ်
+    for h in hits:
         v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
     if not hits: v_table.add_row("", "", "")
@@ -345,7 +344,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
     current_code = [""]
     current_status = ["Init"]
     sess_stat = ["FAKE"] 
-    sess_id = ["--------"] # ⭐ Session ID သိမ်းဖို့
+    sess_id = ["--------"] 
 
     current_mac = [generate_random_mac()]
     current_ip  = [generate_random_ip()]
@@ -373,8 +372,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             continue
 
                         sess_data[0] = res
-                        sess_stat[0] = err_msg # REAL သို့မဟုတ် FAKE
-                        sess_id[0] = res.get('sessionId', '--------') # ⭐ Session ID ကို ယူမယ်
+                        sess_stat[0] = err_msg 
+                        sess_id[0] = res.get('sessionId', '--------') 
 
                     batch_codes = []
                     while len(batch_codes) < CONCURRENCY_LIMIT:
@@ -407,7 +406,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
                         if res == "__SESSION_EXPIRED__":
                             sess_data[0] = None
-                            sess_stat[0] = "EXPIRED" # ⭐ ကုန်သွားရင် Expired ပြမယ်
+                            sess_stat[0] = "EXPIRED" 
                             session_expired_in_batch = True
                             break
 
