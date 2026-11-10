@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard & V15 Speed)
 # Part 1 of 2
 # =====================================================================
 
@@ -35,7 +35,7 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-CONCURRENCY_LIMIT = 25  # ⭐ တစ်ပြိုင်နက် ၂၅ ခု စစ်မယ်
+CONCURRENCY_LIMIT = 25  # V15 Speed ရအောင် ၂၅ ခု တင်ထားသည်
 RL_SLEEP = 0.0          
 
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -259,7 +259,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Clean Dashboard & V15 Speed)
 # Part 2 of 2
 # =====================================================================
 
