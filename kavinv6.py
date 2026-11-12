@@ -1,5 +1,5 @@
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (High Concurrency)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Main Script - Fullscreen)
 # Part 1 of 2
 # =====================================================================
 
@@ -35,9 +35,9 @@ except ImportError:
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
-CONCURRENCY_LIMIT = 35  # ⭐ Speed မြန်အောင် ၃၅ ခု တင်ထားပါတယ်
-TIMEOUT = 1             # ⭐ မြန်မြန်ကျော်သွားအောင် ၃ စက္ကန့်ပဲ ထားတယ်
-RL_SLEEP = 0.0 
+CONCURRENCY_LIMIT = 35
+TIMEOUT = 3
+RL_SLEEP = 0.1 
 
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
 RUIJIE_WIFIDOG = f"{RUIJIE_BASE}/api/auth/wifidog"
@@ -65,9 +65,6 @@ def format_time(seconds):
         return f"{seconds // 3600:02d}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
     except Exception: return "00:00:00"
 
-# ============================================================
-#  LICENSE
-# ============================================================
 def check_license():
     if HAS_LICENSE_MODULE:
         try: return _license.check_approval()
@@ -80,9 +77,6 @@ def activate_license(key):
         except Exception as e: return False, f"Error: {e}"
     return False, "No license module"
 
-# ============================================================
-#  AUTO-DETECT
-# ============================================================
 def get_gateway_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -137,9 +131,6 @@ def auto_detect_portal():
         except: pass
     return None
 
-# ============================================================
-#  SESSION FETCH
-# ============================================================
 async def fetch_official_session(session, gw_params, current_mac_ref, current_ip_ref):
     base = RUIJIE_WIFIDOG
     if "portal-mm-as" in str(gw_params.get("url", "")):
@@ -235,9 +226,6 @@ async def test_code_official(session, sess_data, code, mac, ip):
     except aiohttp.ClientError: return "__NETWORK_ERROR__", "1HR"
     except Exception as e: return f"__ERROR__:{type(e).__name__}", "1HR"
 
-# ============================================================
-#  CODE GENERATOR
-# ============================================================
 seq_counter = 0
 seq_lock = threading.Lock()
 
@@ -265,7 +253,7 @@ def gen_code(mode, length, scan_method="random"):
     except Exception: pass
     return ""
 # =====================================================================
-# kavin_v6.py - KAVIN FAST SPEED V6 (High Concurrency)
+# kavin_v6.py - KAVIN FAST SPEED V6 (Main Script - Fullscreen)
 # Part 2 of 2
 # =====================================================================
 
@@ -359,7 +347,8 @@ async def scan_loop_async(mode, length, scan_method="random", gw_params=None):
 
     conn_limit = aiohttp.TCPConnector(limit=100, ssl=False)
     async with aiohttp.ClientSession(connector=conn_limit) as session:
-        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0, sess_stat[0], sess_id[0]), refresh_per_second=4, screen=False)
+        # ⭐ screen=True ကို သုံးထားတယ် (Fullscreen အတွက်)
+        live = Live(get_dashboard_renderable(mode_str, scan_method, "", tested, "00:00:00", "Init", hits, 0.0, current_mac[0], current_ip[0], 0, sess_stat[0], sess_id[0]), refresh_per_second=4, screen=True)
 
         with live:
             try:
