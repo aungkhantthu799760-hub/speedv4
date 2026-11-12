@@ -36,8 +36,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HITS_FILE = "hits.txt"
 CONCURRENCY_LIMIT = 35  # ⭐ Speed မြန်အောင် ၃၅ ခု တင်ထားပါတယ်
-TIMEOUT = 3             # ⭐ မြန်မြန်ကျော်သွားအောင် ၃ စက္ကန့်ပဲ ထားတယ်
-RL_SLEEP = 0.1 
+TIMEOUT = 1             # ⭐ မြန်မြန်ကျော်သွားအောင် ၃ စက္ကန့်ပဲ ထားတယ်
+RL_SLEEP = 0.0 
 
 RUIJIE_BASE = "https://portal-as.ruijienetworks.com"
 RUIJIE_WIFIDOG = f"{RUIJIE_BASE}/api/auth/wifidog"
